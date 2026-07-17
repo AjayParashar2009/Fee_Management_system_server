@@ -2,6 +2,8 @@ const FeeCollection = require("../schema/feeCollectionSchema");
 const Student = require("../schema/studentSchema");
 const Receipt = require("../schema/receiptSchema");
 const auth_data = require("../schema/authSchema");
+const generateReceiptPDF = require("../utils/generateReceipt");
+const { sendPaymentConfirmation } = require("../services/emailService");
 
 // @desc    Create a new fee collection
 // @route   POST /api/fee-collections
@@ -9,6 +11,8 @@ const auth_data = require("../schema/authSchema");
 const createFeeCollection = async (req, res) => {
   try {
     const { studentId, feeType, amount, paymentMethod, date, note } = req.body;
+
+    console.log("📝 Creating fee collection:", { studentId, feeType, amount });
 
     // Validate required fields
     if (!studentId || !feeType || !amount || !paymentMethod) {
@@ -63,6 +67,65 @@ const createFeeCollection = async (req, res) => {
       status: "Generated",
     });
 
+    // Generate PDF automatically
+    let pdfResult = null;
+    try {
+      const receiptData = {
+        receiptNo: receipt.receiptNo,
+        date: receipt.date,
+        transactionId: feeCollection.transactionId,
+        amount: receipt.amount,
+        feeType: receipt.feeType,
+        paymentMethod: receipt.paymentMethod,
+        status: receipt.status,
+        student: {
+          name: student.name,
+          course: student.course,
+          semester: student.semester,
+          enrollmentNo: student.enrollmentNo,
+          email: student.email || "N/A",
+          phone: student.phone,
+        },
+      };
+
+      pdfResult = await generateReceiptPDF(receiptData);
+
+      // Update receipt with PDF URL
+      receipt.pdfUrl = pdfResult.url;
+      await receipt.save();
+
+      console.log(
+        "✅ PDF generated automatically for receipt:",
+        receipt.receiptNo,
+      );
+    } catch (pdfError) {
+      console.error(
+        "⚠️ PDF generation failed but fee collection was successful:",
+        pdfError.message,
+      );
+      // Continue even if PDF generation fails
+    }
+
+    // ✅ Send email confirmation
+    try {
+      await sendPaymentConfirmation({
+        email: student.email,
+        studentName: student.name,
+        receiptNo: receipt.receiptNo,
+        amount: amount,
+        feeType: feeType,
+        date: new Date(),
+        paymentMethod: paymentMethod,
+        transactionId: transactionId,
+        course: student.course,
+        semester: student.semester,
+      });
+      console.log(`✅ Payment confirmation email sent to ${student.email}`);
+    } catch (emailError) {
+      console.error("⚠️ Email not sent:", emailError.message);
+      // Don't fail the transaction if email fails
+    }
+
     // Populate student data for response
     const populatedFee = await FeeCollection.findById(feeCollection._id)
       .populate("student", "name course semester enrollmentNo")
@@ -73,11 +136,16 @@ const createFeeCollection = async (req, res) => {
       message: "Fee collected successfully",
       data: {
         feeCollection: populatedFee,
-        receipt,
+        receipt: receipt,
+        pdfUrl: pdfResult ? pdfResult.url : null,
+        downloadUrl: pdfResult
+          ? `${process.env.API_URL || "http://localhost:3000"}${pdfResult.url}`
+          : null,
       },
     });
   } catch (error) {
-    console.error("Create fee collection error:", error);
+    console.error("❌ Create fee collection error:", error);
+    console.error("Error stack:", error.stack);
     return res.status(500).json({
       success: false,
       message: error.message || "Server error",
@@ -87,12 +155,28 @@ const createFeeCollection = async (req, res) => {
 
 // @desc    Get all fee collections
 // @route   GET /api/fee-collections
-// @access  Private/Accountant
+// @access  Private (Student sees own, Accountant/Admin sees all)
 const getFeeCollections = async (req, res) => {
   try {
     const { studentId, startDate, endDate, status } = req.query;
 
     let query = {};
+
+    // If user is student, only show their own collections
+    if (req.user.role === "student") {
+      const student = await Student.findOne({ user: req.user.id });
+      if (student) {
+        query.student = student._id;
+      } else {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          totalAmount: 0,
+          data: [],
+        });
+      }
+    }
+
     if (studentId) query.student = studentId;
     if (status) query.status = status;
     if (startDate || endDate) {
@@ -127,7 +211,7 @@ const getFeeCollections = async (req, res) => {
 
 // @desc    Get single fee collection
 // @route   GET /api/fee-collections/:id
-// @access  Private/Accountant
+// @access  Private (Student sees own, Accountant/Admin sees all)
 const getFeeCollection = async (req, res) => {
   try {
     const feeCollection = await FeeCollection.findById(req.params.id)
@@ -139,6 +223,20 @@ const getFeeCollection = async (req, res) => {
         success: false,
         message: "Fee collection not found",
       });
+    }
+
+    // Check if student is accessing their own record
+    if (req.user.role === "student") {
+      const student = await Student.findOne({ user: req.user.id });
+      if (
+        student &&
+        feeCollection.student._id.toString() !== student._id.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
     }
 
     return res.status(200).json({

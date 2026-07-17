@@ -9,14 +9,15 @@ dotenv.config();
 
 const SECRET_KEY = process.env.SECRET_KEY || "Fee_management_system";
 
-// Login function
 const login = async (req, res) => {
-  const { username, password, role } = req.body;
-  console.log("Login attempt:", { username, role });
+  const { username, password } = req.body; 
+  console.log("Login attempt:", { username });
 
   try {
-    // Find user
-    const user = await auth_data.findOne({ username: username });
+    // Find user by username or email
+    const user = await auth_data.findOne({
+      $or: [{ username: username }, { email: username }],
+    });
 
     if (!user) {
       return res.status(404).json({
@@ -35,13 +36,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Check role
-    if (role !== user.role) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid role selected",
-      });
-    }
 
     // Check status
     if (user.status !== "Active") {
@@ -80,7 +74,6 @@ const login = async (req, res) => {
       }
     } catch (profileError) {
       console.error("Error fetching profile:", profileError);
-      // Continue without profile data
     }
 
     return res.status(200).json({
@@ -91,7 +84,7 @@ const login = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.role, 
         status: user.status,
       },
       profile: profileData,
@@ -105,7 +98,7 @@ const login = async (req, res) => {
   }
 };
 
-// Register function
+// Register function (Admin only)
 const register = async (req, res) => {
   const { username, email, password, role } = req.body;
 
@@ -226,8 +219,6 @@ const getMe = async (req, res) => {
         semester: "",
         address: "",
         enrollmentNo: "",
-        // fatherName: "",
-        // motherName: "",
         dob: "",
         totalFees: 0,
         paidFees: 0,

@@ -8,21 +8,19 @@ const {
   deleteFeeCollection,
   getFeeSummary,
 } = require("../controllers/feeCollectionController");
-const { verifyToken, accountant } = require("../middleware/auth");
+const { verifyToken, accountant, isStudent } = require("../middleware/auth");
 
-// ✅ All routes require authentication and accountant role
+// All routes require authentication
 router.use(verifyToken);
-router.use(accountant);
 
-// Routes
-router.route("/").get(getFeeCollections).post(createFeeCollection);
+// Students can view their own fee collections
+router.get("/", isStudent, getFeeCollections);
+router.get("/summary", accountant, getFeeSummary);
 
-router.route("/summary").get(getFeeSummary);
-
-router
-  .route("/:id")
-  .get(getFeeCollection)
-  .put(updateFeeCollection)
-  .delete(deleteFeeCollection);
+// Accountant/Admin can create, update, delete
+router.post("/", accountant, createFeeCollection);
+router.get("/:id", isStudent, getFeeCollection);
+router.put("/:id", accountant, updateFeeCollection);
+router.delete("/:id", accountant, deleteFeeCollection);
 
 module.exports = router;

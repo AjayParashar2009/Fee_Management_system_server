@@ -10,18 +10,13 @@ const SECRET_KEY = process.env.SECRET_KEY || "Fee_management_system";
 const verifyToken = async (req, res, next) => {
   let token;
 
-  // Check if token exists in headers
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
     try {
       token = req.headers.authorization.split(" ")[1];
-
-      // Verify token
       const decoded = jwt.verify(token, SECRET_KEY);
-
-      // Get user from token
       req.user = await auth_data.findById(decoded.id).select("-password");
 
       if (!req.user) {
@@ -62,7 +57,7 @@ const isAdmin = (req, res, next) => {
 };
 
 // Check if user is accountant or admin
-const isAccountant = (req, res, next) => {
+const accountant = (req, res, next) => {
   if (
     req.user &&
     (req.user.role === "accountant" || req.user.role === "admin")
@@ -76,7 +71,7 @@ const isAccountant = (req, res, next) => {
   }
 };
 
-// Check if user is student or admin
+// ✅ Check if user is student or admin
 const isStudent = (req, res, next) => {
   if (req.user && (req.user.role === "student" || req.user.role === "admin")) {
     next();
@@ -88,12 +83,4 @@ const isStudent = (req, res, next) => {
   }
 };
 
-const accountant = isAccountant;
-
-module.exports = {
-  verifyToken,
-  isAdmin,
-  isAccountant,
-  accountant,
-  isStudent,
-};
+module.exports = { verifyToken, isAdmin, accountant, isStudent };

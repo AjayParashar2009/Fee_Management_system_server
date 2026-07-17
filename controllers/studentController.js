@@ -1,11 +1,11 @@
 const auth_data = require("../schema/authSchema");
 const Student = require("../schema/studentSchema");
 const bcrypt = require("bcrypt");
+const { sendRegistrationConfirmation } = require("../services/emailService");
 
 // @desc    Create a new student
 // @route   POST /api/students
 // @access  Private/Admin
-// In studentController.js - createStudent function
 const createStudent = async (req, res) => {
   try {
     const {
@@ -18,8 +18,6 @@ const createStudent = async (req, res) => {
       username,
       password,
       enrollmentNo,
-      // fatherName,
-      // motherName,
       dob,
     } = req.body;
 
@@ -59,8 +57,6 @@ const createStudent = async (req, res) => {
       semester: semester,
       address: address || "",
       enrollmentNo: enrollmentNo || `STU${Date.now().toString().slice(-6)}`,
-      // fatherName: fatherName || "",
-      // motherName: motherName || "",
       dob: dob || "",
       status: "Active",
       totalFees: 0,
@@ -68,6 +64,24 @@ const createStudent = async (req, res) => {
       pendingFees: 0,
       feeStatus: "Pending",
     });
+
+    // ✅ Send registration confirmation email
+    try {
+      await sendRegistrationConfirmation({
+        email: user.email,
+        name: student.name,
+        username: user.username,
+        password: password, // This is the plain password from request
+        role: "student",
+        course: student.course,
+        semester: student.semester,
+        enrollmentNo: student.enrollmentNo,
+      });
+      console.log(`✅ Registration confirmation email sent to ${user.email}`);
+    } catch (emailError) {
+      console.error("⚠️ Registration email not sent:", emailError.message);
+      // Don't fail the registration if email fails
+    }
 
     return res.status(201).json({
       success: true,
@@ -105,8 +119,6 @@ const getStudents = async (req, res) => {
       semester: student.semester,
       address: student.address,
       enrollmentNo: student.enrollmentNo,
-      //   fatherName: student.fatherName,
-      //   motherName: student.motherName,
       dob: student.dob,
       status: student.status,
       feeStatus: student.feeStatus,
@@ -159,8 +171,6 @@ const getStudent = async (req, res) => {
       semester: student.semester,
       address: student.address,
       enrollmentNo: student.enrollmentNo,
-      //   fatherName: student.fatherName,
-      //   motherName: student.motherName,
       dob: student.dob,
       status: student.status,
       feeStatus: student.feeStatus,
@@ -198,8 +208,6 @@ const updateStudent = async (req, res) => {
       address,
       username,
       password,
-      //   fatherName,
-      //   motherName,
       dob,
       status,
     } = req.body;
@@ -219,8 +227,6 @@ const updateStudent = async (req, res) => {
     if (course) student.course = course;
     if (semester) student.semester = semester;
     if (address) student.address = address;
-    // if (fatherName) student.fatherName = fatherName;
-    // if (motherName) student.motherName = motherName;
     if (dob) student.dob = dob;
     if (status) student.status = status;
 

@@ -23,6 +23,7 @@ const feeCollectionRoutes = require("./routes/feeCollectionRoute");
 const receiptRoutes = require("./routes/receiptRoute");
 const reportRoutes = require("./routes/reportRoute");
 const feeStructureRoutes = require("./routes/feeStructureRoute");
+const paymentRoutes = require("./routes/paymentRoute");
 
 // Register routes
 app.use("/api/auth", authRoute);
@@ -32,18 +33,8 @@ app.use("/api/fee-collections", feeCollectionRoutes);
 app.use("/api/receipts", receiptRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/fee-structures", feeStructureRoutes);
-
-// Health check
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Fee Management API is running",
-  });
-});
+app.use("/api/payments", paymentRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📚 API: http://localhost:${PORT}/api/auth`);
-  console.log(`📚 Students: http://localhost:${PORT}/api/students`);
-  console.log(`📚 Accountants: http://localhost:${PORT}/api/accountants`);
 });
