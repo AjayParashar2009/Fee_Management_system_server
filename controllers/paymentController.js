@@ -1,4 +1,3 @@
-const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const Payment = require("../schema/payment");
 const Student = require("../schema/studentSchema");
@@ -6,12 +5,6 @@ const FeeCollection = require("../schema/feeCollectionSchema");
 const Receipt = require("../schema/receiptSchema");
 const { sendPaymentConfirmation } = require("../services/emailService");
 const generateReceiptPDF = require("../utils/generateReceipt");
-
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
 
 // @desc    Create a new payment order
 // @route   POST /api/payments/create-order
@@ -39,26 +32,10 @@ const createOrder = async (req, res) => {
     // Generate receipt number
     const receipt = `RCPT_${Date.now()}`;
 
-    // Create Razorpay order
-    const options = {
-      amount: amount * 100, // Amount in paise
-      currency: "INR",
-      receipt: receipt,
-      notes: {
-        studentId: studentId,
-        feeType: feeType,
-        studentName: student.name,
-        course: student.course,
-      },
-    };
-
-    const order = await razorpay.orders.create(options);
-
-    // Save payment record
     const payment = await Payment.create({
       student: studentId,
       user: req.user.id,
-      orderId: order.id,
+      orderId: `PAY-${Date.now()}`,
       amount: amount,
       feeType: feeType,
       receipt: receipt,
@@ -72,12 +49,12 @@ const createOrder = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      message: "Payment order created locally. Razorpay integration is disabled.",
       data: {
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        receipt: order.receipt,
-        key: process.env.RAZORPAY_KEY_ID,
+        orderId: payment.orderId,
+        amount: amount,
+        currency: "INR",
+        receipt: receipt,
         paymentId: payment._id,
       },
     });
@@ -98,19 +75,10 @@ const verifyPayment = async (req, res) => {
     const { orderId, paymentId, signature, studentId, feeType, amount } =
       req.body;
 
-    // Verify signature
-    const body = orderId + "|" + paymentId;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body)
-      .digest("hex");
-
-    const isAuthentic = expectedSignature === signature;
-
-    if (!isAuthentic) {
+    if (!orderId || !paymentId) {
       return res.status(400).json({
         success: false,
-        message: "Payment verification failed",
+        message: "orderId and paymentId are required",
       });
     }
 
