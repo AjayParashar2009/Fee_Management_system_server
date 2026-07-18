@@ -7,7 +7,7 @@ const {
   updateStudent,
   deleteStudent,
 } = require("../controllers/studentController");
-const { verifyToken, isAdmin, accountant } = require("../middleware/auth");
+const { verifyToken, isAdmin, accountant } = require("../Middleware/auth");
 
 // All routes require authentication
 router.use(verifyToken);

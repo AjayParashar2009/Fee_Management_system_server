@@ -1,7 +1,7 @@
 const dotenv = require("dotenv");
 dotenv.config();
 
-const { sendEmail } = require("../config/email");
+const { sendEmail } = require("../Config/email");
 
 const testEmail = async () => {
   try {

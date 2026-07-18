@@ -8,7 +8,7 @@ const {
   deleteFeeStructure,
   getFeeStructureByCourse,
 } = require("../controllers/feeStructureController");
-const { verifyToken, isAdmin } = require("../middleware/auth");
+const { verifyToken, isAdmin } = require("../Middleware/auth");
 
 // All routes require authentication and admin role
 router.use(verifyToken);

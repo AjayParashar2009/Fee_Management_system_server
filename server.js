@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Database connection
-require("./config/db");
+require("./Config/db");
 
 // Middleware
 app.use(cors());
@@ -16,14 +16,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Import routes
-const authRoute = require("./routes/authRoute");
-const studentRoutes = require("./routes/studentRoute");
-const accountantRoutes = require("./routes/accountantRoute");
-const feeCollectionRoutes = require("./routes/feeCollectionRoute");
-const receiptRoutes = require("./routes/receiptRoute");
-const reportRoutes = require("./routes/reportRoute");
-const feeStructureRoutes = require("./routes/feeStructureRoute");
-const paymentRoutes = require("./routes/paymentRoute");
+const authRoute = require("./Routes/authRoute");
+const studentRoutes = require("./Routes/studentRoute");
+const accountantRoutes = require("./Routes/accountantRoute");
+const feeCollectionRoutes = require("./Routes/feeCollectionRoute");
+const receiptRoutes = require("./Routes/receiptRoute");
+const reportRoutes = require("./Routes/reportRoute");
+const feeStructureRoutes = require("./Routes/feeStructureRoute");
+const paymentRoutes = require("./Routes/paymentRoute");
 
 // Register routes
 app.use("/api/auth", authRoute);

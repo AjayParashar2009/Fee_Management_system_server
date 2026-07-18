@@ -8,7 +8,7 @@ const {
   deleteFeeCollection,
   getFeeSummary,
 } = require("../controllers/feeCollectionController");
-const { verifyToken, accountant, isStudent } = require("../middleware/auth");
+const { verifyToken, accountant, isStudent } = require("../Middleware/auth");
 
 // All routes require authentication
 router.use(verifyToken);

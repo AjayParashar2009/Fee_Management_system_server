@@ -1,6 +1,6 @@
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
-const Payment = require("../schema/Payment");
+const Payment = require("../schema/payment");
 const Student = require("../schema/studentSchema");
 const FeeCollection = require("../schema/feeCollectionSchema");
 const Receipt = require("../schema/receiptSchema");

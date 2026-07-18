@@ -6,7 +6,7 @@ const {
   getReceiptReport,
   getDashboardStats,
 } = require("../controllers/reportController");
-const { verifyToken, accountant } = require("../middleware/auth");
+const { verifyToken, accountant } = require("../Middleware/auth");
 
 // ✅ All routes require authentication and accountant role
 router.use(verifyToken);

@@ -6,7 +6,7 @@ const {
   getMe,
   logout,
 } = require("../Config/auth");
-const { verifyToken, isAdmin } = require("../middleware/auth");
+const { verifyToken, isAdmin } = require("../Middleware/auth");
 
 // Public routes (no token required)
 router.post("/login", login);

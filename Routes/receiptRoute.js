@@ -8,7 +8,7 @@ const {
   generateReceiptPDFController,
   downloadReceiptPDF,
 } = require("../controllers/receiptController");
-const { verifyToken, accountant, isStudent } = require("../middleware/auth");
+const { verifyToken, accountant, isStudent } = require("../Middleware/auth");
 
 // All routes require authentication
 router.use(verifyToken);

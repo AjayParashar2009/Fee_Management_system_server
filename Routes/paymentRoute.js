@@ -6,7 +6,7 @@ const {
   getPaymentStatus,
   getStudentPayments,
 } = require("../controllers/paymentController");
-const { verifyToken, isStudent } = require("../middleware/auth");
+const { verifyToken, isStudent } = require("../Middleware/auth");
 
 // All routes require authentication
 router.use(verifyToken);

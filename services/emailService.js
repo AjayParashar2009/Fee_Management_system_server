@@ -1,4 +1,4 @@
-const { sendEmail } = require("../config/email");
+const { sendEmail } = require("../Config/email");
 const paymentConfirmationTemplate = require("../templates/emails/paymentConfirmation");
 const feeReminderTemplate = require("../templates/emails/feeRemainder");
 const registrationConfirmationTemplate = require("../templates/emails/registrationConfirmation");
