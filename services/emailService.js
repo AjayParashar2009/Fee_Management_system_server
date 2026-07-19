@@ -36,23 +36,23 @@ const sendFeeReminder = async (data) => {
 };
 
 // Send registration confirmation email
-const sendRegistrationConfirmation = async (data) => {
-  try {
-    const { email, name } = data;
-    const subject = `🎉 Welcome to Fee Management System`;
-    const html = registrationConfirmationTemplate(data);
+// const sendRegistrationConfirmation = async (data) => {
+//   try {
+//     const { email, name } = data;
+//     const subject = `🎉 Welcome to Fee Management System`;
+//     const html = registrationConfirmationTemplate(data);
 
-    await sendEmail(email, subject, html);
-    console.log(`✅ Registration confirmation sent to ${email}`);
-    return true;
-  } catch (error) {
-    console.error("❌ Error sending registration confirmation:", error);
-    return false;
-  }
-};
+//     await sendEmail(email, subject, html);
+//     console.log(`✅ Registration confirmation sent to ${email}`);
+//     return true;
+//   } catch (error) {
+//     console.error("❌ Error sending registration confirmation:", error);
+//     return false;
+//   }
+// };
 
 module.exports = {
   sendPaymentConfirmation,
   sendFeeReminder,
-  sendRegistrationConfirmation,
+  // sendRegistrationConfirmation,
 };

@@ -1,25 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createAccountant,
   getAccountants,
-  getAccountant,
+  createAccountant,
   updateAccountant,
   deleteAccountant,
 } = require("../controllers/accountantController");
-const { verifyToken, isAdmin } = require("../Middleware/auth");
+const { auth, adminOnly } = require("../Middleware/auth");
 
-// ✅ All routes require authentication and admin role
-router.use(verifyToken);
-router.use(isAdmin);
-
-// Accountant routes
-router.route("/").get(getAccountants).post(createAccountant);
-
-router
-  .route("/:id")
-  .get(getAccountant)
-  .put(updateAccountant)
-  .delete(deleteAccountant);
+router.use(auth);
+router.use(adminOnly);
+router.get("/", getAccountants);
+router.post("/", createAccountant);
+router.put("/:id", updateAccountant);
+router.delete("/:id", deleteAccountant);
 
 module.exports = router;

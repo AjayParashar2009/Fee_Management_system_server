@@ -7,52 +7,15 @@ const accountantSchema = new mongoose.Schema(
       ref: "auth_data",
       required: true,
     },
-    name: {
-      type: String,
-      required: [true, "Name is required"],
-      trim: true,
-    },
-    phone: {
-      type: String,
-      required: [true, "Phone number is required"],
-      match: [/^\d{10}$/, "Phone number must be 10 digits"],
-    },
-    department: {
-      type: String,
-      required: [true, "Department is required"],
-      enum: [
-        "Fee Collection",
-        "Accounts",
-        "Fee Management",
-        "Finance",
-        "Audit",
-      ],
-    },
-    address: {
-      type: String,
-      default: "",
-    },
-    employeeId: {
-      type: String,
-      unique: true,
-      sparse: true,
-    },
-    joinDate: {
-      type: Date,
-      default: Date.now,
-    },
-    status: {
-      type: String,
-      enum: ["Active", "Inactive"],
-      default: "Active",
-    },
+    name: { type: String, required: true },
+    phone: { type: String, required: true },
+    department: { type: String, required: true },
+    address: { type: String, default: "" },
+    employeeId: { type: String, unique: true, sparse: true },
+    joinDate: { type: Date, default: Date.now },
+    status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
   },
-  {
-    collection: "accountants",
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-const Accountant = mongoose.model("Accountant", accountantSchema);
-
-module.exports = Accountant;
+module.exports = mongoose.model("Accountant", accountantSchema);

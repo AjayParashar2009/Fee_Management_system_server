@@ -5,17 +5,12 @@ const {
   register,
   getMe,
   logout,
-} = require("../Config/auth");
-const { verifyToken, isAdmin } = require("../Middleware/auth");
+} = require("../controllers/authController");
+const { auth, adminOnly } = require("../Middleware/auth");
 
-// Public routes (no token required)
 router.post("/login", login);
-
-// Protected routes (token required)
-router.get("/me", verifyToken, getMe);
-router.post("/logout", verifyToken, logout);
-
-// Admin only routes
-router.post("/register", verifyToken, isAdmin, register);
+router.get("/me", auth, getMe);
+router.post("/logout", auth, logout);
+router.post("/register", auth, adminOnly, register);
 
 module.exports = router;

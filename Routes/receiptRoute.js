@@ -8,21 +8,15 @@ const {
   generateReceiptPDFController,
   downloadReceiptPDF,
 } = require("../controllers/receiptController");
-const { verifyToken, accountant, isStudent } = require("../Middleware/auth");
+const { auth, accountantOnly, studentOnly } = require("../middleware/auth");
 
-// All routes require authentication
-router.use(verifyToken);
+router.use(auth);
 
-// Students can view their own receipts
-router.get("/", isStudent, getReceipts);
-router.get("/by-receipt/:receiptNo", isStudent, getReceiptByNumber);
-router.get("/:id", isStudent, getReceipt);
-
-// PDF generation - Students can generate their own receipts
-router.post("/:id/generate-pdf", isStudent, generateReceiptPDFController);
-router.get("/:id/download-pdf", isStudent, downloadReceiptPDF);
-
-// Accountant/Admin can update receipts
-router.put("/:id", accountant, updateReceipt);
+router.get("/", studentOnly, getReceipts);
+router.get("/by-receipt/:receiptNo", studentOnly, getReceiptByNumber);
+router.get("/:id", studentOnly, getReceipt);
+router.post("/:id/generate-pdf", studentOnly, generateReceiptPDFController);
+router.get("/:id/download-pdf", studentOnly, downloadReceiptPDF);
+router.put("/:id", accountantOnly, updateReceipt);
 
 module.exports = router;

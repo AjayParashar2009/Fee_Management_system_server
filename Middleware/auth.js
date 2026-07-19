@@ -1,86 +1,72 @@
+// middleware/auth.js
 const jwt = require("jsonwebtoken");
-const auth_data = require("../schema/authSchema");
+const User = require("../schema/authSchema"); // or auth_data
 const dotenv = require("dotenv");
 
 dotenv.config();
-
 const SECRET_KEY = process.env.SECRET_KEY || "Fee_management_system";
 
-// Verify JWT token
-const verifyToken = async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-      const decoded = jwt.verify(token, SECRET_KEY);
-      req.user = await auth_data.findById(decoded.id).select("-password");
-
-      if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error("Token verification error:", error);
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token",
-      });
+// Authenticate user
+const auth = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res
+        .status(401)
+        .json({ success: false, message: "No token provided" });
     }
-  }
 
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: "No token provided",
-    });
-  }
-};
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const user = await User.findById(decoded.id).select("-password");
 
-// Check if user is admin
-const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+    if (!user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (user.status !== "Active") {
+      return res
+        .status(403)
+        .json({ success: false, message: "Account is inactive" });
+    }
+
+    req.user = user;
+    req.userId = user._id;
     next();
-  } else {
-    return res.status(403).json({
-      success: false,
-      message: "Access denied. Admin only.",
-    });
+  } catch (error) {
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid or expired token" });
   }
 };
 
-// Check if user is accountant or admin
-const accountant = (req, res, next) => {
-  if (
-    req.user &&
-    (req.user.role === "accountant" || req.user.role === "admin")
-  ) {
-    next();
-  } else {
-    return res.status(403).json({
-      success: false,
-      message: "Access denied. Accountant or Admin only.",
-    });
-  }
+// ✅ Admin only
+const adminOnly = (req, res, next) => {
+  if (req.user.role === "admin") return next();
+  return res
+    .status(403)
+    .json({ success: false, message: "Admin access required" });
 };
 
-// ✅ Check if user is student or admin
-const isStudent = (req, res, next) => {
-  if (req.user && (req.user.role === "student" || req.user.role === "admin")) {
-    next();
-  } else {
-    return res.status(403).json({
-      success: false,
-      message: "Access denied. Student or Admin only.",
-    });
+// ✅ Accountant or Admin
+const accountantOnly = (req, res, next) => {
+  // ✅ Allow both accountant and admin roles
+  if (req.user.role === "accountant" || req.user.role === "admin") {
+    return next();
   }
+  return res.status(403).json({
+    success: false,
+    message: "Access denied. Accountant or Admin only.",
+  });
 };
 
-module.exports = { verifyToken, isAdmin, accountant, isStudent };
+// ✅ Student or Admin
+const studentOnly = (req, res, next) => {
+  if (req.user.role === "student" || req.user.role === "admin") return next();
+  return res
+    .status(403)
+    .json({ success: false, message: "Student access required" });
+};
+
+module.exports = { auth, adminOnly, accountantOnly, studentOnly };

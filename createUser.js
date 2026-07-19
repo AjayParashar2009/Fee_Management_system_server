@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const auth_data = require("./schema/authSchema");
 
-mongoose.connect("mongodb://localhost:27017/fee_management");
+mongoose.connect("mongodb+srv://sharmaajay20090_db_user:maOx5REpByy23zaV@cluster0.1di32px.mongodb.net/?appName=Cluster0");
 
 const createUser = async () => {
   try {

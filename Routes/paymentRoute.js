@@ -6,15 +6,13 @@ const {
   getPaymentStatus,
   getStudentPayments,
 } = require("../controllers/paymentController");
-const { verifyToken, isStudent } = require("../Middleware/auth");
+const { auth, studentOnly } = require("../middleware/auth");
 
-// All routes require authentication
-router.use(verifyToken);
+router.use(auth);
 
-// Student routes
-router.post("/create-order", isStudent, createOrder);
-router.post("/verify", isStudent, verifyPayment);
-router.get("/student", isStudent, getStudentPayments);
-router.get("/:orderId", isStudent, getPaymentStatus);
+router.post("/create-order", studentOnly, createOrder);
+router.post("/verify", studentOnly, verifyPayment);
+router.get("/student", studentOnly, getStudentPayments);
+router.get("/:orderId", studentOnly, getPaymentStatus);
 
 module.exports = router;

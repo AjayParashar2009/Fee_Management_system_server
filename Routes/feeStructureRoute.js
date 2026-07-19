@@ -1,28 +1,24 @@
+// Routes/feeStructureRoute.js
 const express = require("express");
 const router = express.Router();
 const {
-  createFeeStructure,
   getFeeStructures,
-  getFeeStructure,
+  createFeeStructure,
   updateFeeStructure,
   deleteFeeStructure,
   getFeeStructureByCourse,
 } = require("../controllers/feeStructureController");
-const { verifyToken, isAdmin } = require("../Middleware/auth");
+const { auth, adminOnly } = require("../middleware/auth");
 
-// All routes require authentication and admin role
-router.use(verifyToken);
-router.use(isAdmin);
+// ✅ All routes require authentication and admin role
+router.use(auth);
+router.use(adminOnly);
 
 // Routes
-router.route("/").get(getFeeStructures).post(createFeeStructure);
-
+router.get("/", getFeeStructures);
 router.get("/course/:course", getFeeStructureByCourse);
-
-router
-  .route("/:id")
-  .get(getFeeStructure)
-  .put(updateFeeStructure)
-  .delete(deleteFeeStructure);
+router.post("/", createFeeStructure);
+router.put("/:id", updateFeeStructure);
+router.delete("/:id", deleteFeeStructure);
 
 module.exports = router;

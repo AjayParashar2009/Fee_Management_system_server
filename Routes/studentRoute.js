@@ -1,24 +1,22 @@
+// Routes/studentRoute.js
 const express = require("express");
 const router = express.Router();
 const {
-  createStudent,
   getStudents,
   getStudent,
+  createStudent,
   updateStudent,
   deleteStudent,
+  getStudentFees, // ✅ Import
 } = require("../controllers/studentController");
-const { verifyToken, isAdmin, accountant } = require("../Middleware/auth");
+const { auth, adminOnly, accountantOnly } = require("../middleware/auth");
 
-// All routes require authentication
-router.use(verifyToken);
-
-// Public (for all authenticated users) - Accountant can view students
-router.get("/", accountant, getStudents);
-router.get("/:id", accountant, getStudent);
-
-// Admin only routes
-router.post("/", isAdmin, createStudent);
-router.put("/:id", isAdmin, updateStudent);
-router.delete("/:id", isAdmin, deleteStudent);
+router.use(auth);
+router.get("/", accountantOnly, getStudents);
+router.get("/:id", accountantOnly, getStudent);
+router.get("/:id/fees", getStudentFees); // ✅ Add this route
+router.post("/", adminOnly, createStudent);
+router.put("/:id", adminOnly, updateStudent);
+router.delete("/:id", adminOnly, deleteStudent);
 
 module.exports = router;

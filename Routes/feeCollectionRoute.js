@@ -1,26 +1,25 @@
+// Routes/feeCollectionRoute.js
 const express = require("express");
 const router = express.Router();
 const {
   createFeeCollection,
   getFeeCollections,
   getFeeCollection,
-  updateFeeCollection,
   deleteFeeCollection,
   getFeeSummary,
 } = require("../controllers/feeCollectionController");
-const { verifyToken, accountant, isStudent } = require("../Middleware/auth");
+const { auth, accountantOnly, studentOnly } = require("../middleware/auth");
 
-// All routes require authentication
-router.use(verifyToken);
+// ✅ All routes require authentication
+router.use(auth);
 
-// Students can view their own fee collections
-router.get("/", isStudent, getFeeCollections);
-router.get("/summary", accountant, getFeeSummary);
+// ✅ Allow accountant and admin to view collections
+router.get("/", accountantOnly, getFeeCollections);
+router.get("/summary", accountantOnly, getFeeSummary);
 
-// Accountant/Admin can create, update, delete
-router.post("/", accountant, createFeeCollection);
-router.get("/:id", isStudent, getFeeCollection);
-router.put("/:id", accountant, updateFeeCollection);
-router.delete("/:id", accountant, deleteFeeCollection);
+// ✅ Allow accountant and admin to create and delete
+router.post("/", accountantOnly, createFeeCollection);
+router.get("/:id", accountantOnly, getFeeCollection);
+router.delete("/:id", accountantOnly, deleteFeeCollection);
 
 module.exports = router;

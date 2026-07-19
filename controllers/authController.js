@@ -1,20 +1,19 @@
+// controllers/authController.js
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const auth_data = require("../schema/authSchema");
-const Student = require("../schema/studentSchema");
-const Accountant = require("../schema/accountantSchema");
+const auth_data = require("../schema/authSchema"); // ✅ Import from schema
+const Student = require("../schema/studentSchema"); // ✅ If you have separate student schema
+const Accountant = require("../schema/accountantSchema"); // ✅ If you have separate accountant schema
 const dotenv = require("dotenv");
 
 dotenv.config();
-
 const SECRET_KEY = process.env.SECRET_KEY || "Fee_management_system";
 
+// Login
 const login = async (req, res) => {
-  const { username, password } = req.body; 
-  console.log("Login attempt:", { username });
-
   try {
-    // Find user by username or email
+    const { username, password } = req.body;
+
     const user = await auth_data.findOne({
       $or: [{ username: username }, { email: username }],
     });
@@ -26,9 +25,7 @@ const login = async (req, res) => {
       });
     }
 
-    // Check password
     const isPasswordMatch = await bcrypt.compare(password, user.password);
-
     if (!isPasswordMatch) {
       return res.status(400).json({
         success: false,
@@ -36,8 +33,6 @@ const login = async (req, res) => {
       });
     }
 
-
-    // Check status
     if (user.status !== "Active") {
       return res.status(400).json({
         success: false,
@@ -45,35 +40,18 @@ const login = async (req, res) => {
       });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
-      {
-        id: user._id,
-        username: user.username,
-        role: user.role,
-      },
+      { id: user._id, username: user.username, role: user.role },
       SECRET_KEY,
       { expiresIn: "7d" },
     );
 
-    // Update last login time
-    await auth_data.updateOne(
-      { _id: user._id },
-      { $set: { updatedAt: new Date() } },
-    );
-
-    // Get profile data based on role
+    // Get profile based on role
     let profileData = null;
-    try {
-      if (user.role === "student") {
-        profileData = await Student.findOne({ user: user._id });
-        console.log("Student profile found:", profileData ? "Yes" : "No");
-      } else if (user.role === "accountant") {
-        profileData = await Accountant.findOne({ user: user._id });
-        console.log("Accountant profile found:", profileData ? "Yes" : "No");
-      }
-    } catch (profileError) {
-      console.error("Error fetching profile:", profileError);
+    if (user.role === "student") {
+      profileData = await Student.findOne({ user: user._id });
+    } else if (user.role === "accountant") {
+      profileData = await Accountant.findOne({ user: user._id });
     }
 
     return res.status(200).json({
@@ -84,7 +62,7 @@ const login = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role, 
+        role: user.role,
         status: user.status,
       },
       profile: profileData,
@@ -98,11 +76,23 @@ const login = async (req, res) => {
   }
 };
 
-// Register function (Admin only)
+// Register (Admin only)
 const register = async (req, res) => {
-  const { username, email, password, role } = req.body;
-
   try {
+    const {
+      username,
+      email,
+      password,
+      role,
+      status,
+      name,
+      phone,
+      address,
+      dob,
+      course,
+      semester,
+    } = req.body;
+
     const existing_user = await auth_data.findOne({
       $or: [{ username }, { email }],
     });
@@ -122,25 +112,40 @@ const register = async (req, res) => {
       email,
       password: hashPassword,
       role: role || "student",
-      status: "Active",
+      status: status || "Active",
     });
 
-    const token = jwt.sign(
-      {
-        id: user._id,
-        username: user.username,
-        role: user.role,
-      },
-      SECRET_KEY,
-      {
-        expiresIn: "7d",
-      },
-    );
+    // If role is student, create student profile
+    if (user.role === "student") {
+      await Student.create({
+        user: user._id,
+        name: name || username,
+        phone: phone || "",
+        course: course || "",
+        semester: semester || 1,
+        address: address || "",
+        dob: dob || "",
+        enrollmentNo: `STU${Date.now().toString().slice(-6)}`,
+        status: "Active",
+      });
+    }
+
+    // If role is accountant, create accountant profile
+    if (user.role === "accountant") {
+      await Accountant.create({
+        user: user._id,
+        name: name || username,
+        phone: phone || "",
+        department: "Fee Collection",
+        address: address || "",
+        employeeId: `ACC${Date.now().toString().slice(-6)}`,
+        status: "Active",
+      });
+    }
 
     return res.status(201).json({
       success: true,
       message: "User registered successfully",
-      token: token,
       user: {
         id: user._id,
         username: user.username,
@@ -161,11 +166,7 @@ const register = async (req, res) => {
 // Get user profile
 const getMe = async (req, res) => {
   try {
-    console.log("Getting profile for user:", req.user.id);
-
-    // Find user
     const user = await auth_data.findById(req.user.id).select("-password");
-
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -173,66 +174,22 @@ const getMe = async (req, res) => {
       });
     }
 
-    console.log("User found:", user.username, "Role:", user.role);
-
     let profileData = null;
-
-    // Get profile based on role
     if (user.role === "student") {
-      try {
-        profileData = await Student.findOne({ user: user._id });
-        console.log("Student profile found:", profileData ? "Yes" : "No");
-      } catch (err) {
-        console.error("Error fetching student profile:", err);
-      }
+      profileData = await Student.findOne({ user: user._id });
     } else if (user.role === "accountant") {
-      try {
-        profileData = await Accountant.findOne({ user: user._id });
-        console.log("Accountant profile found:", profileData ? "Yes" : "No");
-      } catch (err) {
-        console.error("Error fetching accountant profile:", err);
-      }
+      profileData = await Accountant.findOne({ user: user._id });
     }
 
-    // Create response with user data
-    const responseData = {
+    return res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        profileImage: user.profileImage || null,
-        lastLogin: user.lastLogin || null,
-        createdAt: user.createdAt,
+      data: {
+        ...user.toObject(),
+        profile: profileData,
       },
-    };
-
-    if (profileData) {
-      responseData.profile = profileData;
-    } else {
-      responseData.profile = {
-        name: user.username,
-        phone: "",
-        course: "",
-        semester: "",
-        address: "",
-        enrollmentNo: "",
-        dob: "",
-        totalFees: 0,
-        paidFees: 0,
-        pendingFees: 0,
-        feeStatus: "Pending",
-      };
-    }
-
-    console.log("Sending profile response");
-
-    return res.status(200).json(responseData);
+    });
   } catch (error) {
-    console.error("❌ Get profile error:", error);
-    console.error("Error stack:", error.stack);
+    console.error("Get profile error:", error);
     return res.status(500).json({
       success: false,
       message: "Server error: " + error.message,
@@ -240,7 +197,7 @@ const getMe = async (req, res) => {
   }
 };
 
-// Logout function
+// Logout
 const logout = async (req, res) => {
   return res.status(200).json({
     success: true,

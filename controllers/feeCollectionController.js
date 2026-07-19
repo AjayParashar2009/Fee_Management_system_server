@@ -1,363 +1,184 @@
+// controllers/feeCollectionController.js
 const FeeCollection = require("../schema/feeCollectionSchema");
 const Student = require("../schema/studentSchema");
-const Receipt = require("../schema/receiptSchema");
 const auth_data = require("../schema/authSchema");
-const generateReceiptPDF = require("../utils/generateReceipt");
-const { sendPaymentConfirmation } = require("../services/emailService");
 
-// @desc    Create a new fee collection
-// @route   POST /api/fee-collections
-// @access  Private/Accountant
+// Create fee collection
 const createFeeCollection = async (req, res) => {
   try {
-    const { studentId, feeType, amount, paymentMethod, date, note } = req.body;
+    const { studentId, amount, feeType, paymentMethod, note } = req.body;
 
-    console.log("📝 Creating fee collection:", { studentId, feeType, amount });
-
-    // Validate required fields
-    if (!studentId || !feeType || !amount || !paymentMethod) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
-    }
-
-    // Check if student exists
     const student = await Student.findById(studentId);
     if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Student not found" });
     }
 
-    // Generate receipt number
     const receiptNo = `RCPT${Date.now().toString().slice(-6)}`;
     const transactionId = `TXN${Date.now()}`;
 
-    // Create fee collection record
-    const feeCollection = await FeeCollection.create({
+    const collection = await FeeCollection.create({
       student: studentId,
-      feeType,
       amount,
-      paymentMethod,
-      transactionId,
+      feeType,
+      paymentMethod: paymentMethod || "Cash",
       receiptNo,
-      status: "Completed",
-      date: date || new Date(),
+      transactionId,
+      collectedBy: req.userId,
       note: note || "",
-      collectedBy: req.user.id,
+      status: "Completed",
     });
 
     // Update student fees
     student.paidFees = (student.paidFees || 0) + amount;
     student.pendingFees = (student.totalFees || 0) - student.paidFees;
-    student.feeStatus = student.pendingFees <= 0 ? "Paid" : "Partial";
+    student.feeStatus =
+      student.pendingFees <= 0
+        ? "Paid"
+        : student.paidFees > 0
+          ? "Partial"
+          : "Pending";
     await student.save();
 
-    // Create receipt
-    const receipt = await Receipt.create({
-      receiptNo,
-      student: studentId,
-      feeCollection: feeCollection._id,
-      amount,
-      feeType,
-      paymentMethod,
-      date: date || new Date(),
-      status: "Generated",
-    });
-
-    // Generate PDF automatically
-    let pdfResult = null;
-    try {
-      const receiptData = {
-        receiptNo: receipt.receiptNo,
-        date: receipt.date,
-        transactionId: feeCollection.transactionId,
-        amount: receipt.amount,
-        feeType: receipt.feeType,
-        paymentMethod: receipt.paymentMethod,
-        status: receipt.status,
-        student: {
-          name: student.name,
-          course: student.course,
-          semester: student.semester,
-          enrollmentNo: student.enrollmentNo,
-          email: student.email || "N/A",
-          phone: student.phone,
-        },
-      };
-
-      pdfResult = await generateReceiptPDF(receiptData);
-
-      // Update receipt with PDF URL
-      receipt.pdfUrl = pdfResult.url;
-      await receipt.save();
-
-      console.log(
-        "✅ PDF generated automatically for receipt:",
-        receipt.receiptNo,
-      );
-    } catch (pdfError) {
-      console.error(
-        "⚠️ PDF generation failed but fee collection was successful:",
-        pdfError.message,
-      );
-      // Continue even if PDF generation fails
-    }
-
-    // ✅ Send email confirmation
-    try {
-      await sendPaymentConfirmation({
-        email: student.email,
-        studentName: student.name,
-        receiptNo: receipt.receiptNo,
-        amount: amount,
-        feeType: feeType,
-        date: new Date(),
-        paymentMethod: paymentMethod,
-        transactionId: transactionId,
-        course: student.course,
-        semester: student.semester,
-      });
-      console.log(`✅ Payment confirmation email sent to ${student.email}`);
-    } catch (emailError) {
-      console.error("⚠️ Email not sent:", emailError.message);
-      // Don't fail the transaction if email fails
-    }
-
-    // Populate student data for response
-    const populatedFee = await FeeCollection.findById(feeCollection._id)
+    const populated = await FeeCollection.findById(collection._id)
       .populate("student", "name course semester enrollmentNo")
-      .populate("collectedBy", "username email");
+      .populate("collectedBy", "username");
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
       message: "Fee collected successfully",
-      data: {
-        feeCollection: populatedFee,
-        receipt: receipt,
-        pdfUrl: pdfResult ? pdfResult.url : null,
-        downloadUrl: pdfResult
-          ? `${process.env.API_URL || "http://localhost:3000"}${pdfResult.url}`
-          : null,
+      data: populated,
+      receipt: {
+        receiptNo,
+        student: student.name,
+        amount,
+        date: collection.date,
       },
     });
   } catch (error) {
-    console.error("❌ Create fee collection error:", error);
-    console.error("Error stack:", error.stack);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Server error",
-    });
+    console.error("Create fee collection error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get all fee collections
-// @route   GET /api/fee-collections
-// @access  Private (Student sees own, Accountant/Admin sees all)
+// Get all fee collections
 const getFeeCollections = async (req, res) => {
   try {
-    const { studentId, startDate, endDate, status } = req.query;
-
     let query = {};
-
-    // If user is student, only show their own collections
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user: req.user.id });
+      const student = await Student.findOne({ user: req.userId });
       if (student) {
         query.student = student._id;
       } else {
-        return res.status(200).json({
-          success: true,
-          count: 0,
-          totalAmount: 0,
-          data: [],
-        });
+        return res.status(200).json({ success: true, count: 0, data: [] });
       }
     }
 
-    if (studentId) query.student = studentId;
+    const { startDate, endDate, status } = req.query;
+    if (startDate) query.date = { ...query.date, $gte: new Date(startDate) };
+    if (endDate) query.date = { ...query.date, $lte: new Date(endDate) };
     if (status) query.status = status;
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
 
-    const feeCollections = await FeeCollection.find(query)
-      .populate("student", "name course semester enrollmentNo phone")
-      .populate("collectedBy", "username email")
+    const collections = await FeeCollection.find(query)
+      .populate("student", "name course semester enrollmentNo")
+      .populate("collectedBy", "username")
       .sort({ date: -1 });
 
-    // Calculate totals
-    const totalAmount = feeCollections.reduce((sum, f) => sum + f.amount, 0);
-    const totalCount = feeCollections.length;
+    const totalAmount = collections.reduce((sum, c) => sum + c.amount, 0);
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      count: totalCount,
+      count: collections.length,
       totalAmount,
-      data: feeCollections,
+      data: collections,
     });
   } catch (error) {
     console.error("Get fee collections error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get single fee collection
-// @route   GET /api/fee-collections/:id
-// @access  Private (Student sees own, Accountant/Admin sees all)
+// Get single fee collection
 const getFeeCollection = async (req, res) => {
   try {
-    const feeCollection = await FeeCollection.findById(req.params.id)
-      .populate("student", "name course semester enrollmentNo phone email")
-      .populate("collectedBy", "username email");
+    const collection = await FeeCollection.findById(req.params.id)
+      .populate("student", "name course semester enrollmentNo")
+      .populate("collectedBy", "username");
 
-    if (!feeCollection) {
-      return res.status(404).json({
-        success: false,
-        message: "Fee collection not found",
-      });
+    if (!collection) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Collection not found" });
     }
 
     // Check if student is accessing their own record
     if (req.user.role === "student") {
-      const student = await Student.findOne({ user: req.user.id });
+      const student = await Student.findOne({ user: req.userId });
       if (
         student &&
-        feeCollection.student._id.toString() !== student._id.toString()
+        collection.student._id.toString() !== student._id.toString()
       ) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
+        return res
+          .status(403)
+          .json({ success: false, message: "Access denied" });
       }
     }
 
-    return res.status(200).json({
-      success: true,
-      data: feeCollection,
-    });
+    res.json({ success: true, data: collection });
   } catch (error) {
     console.error("Get fee collection error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Update fee collection status
-// @route   PUT /api/fee-collections/:id
-// @access  Private/Accountant
-const updateFeeCollection = async (req, res) => {
-  try {
-    const { status, note } = req.body;
-
-    const feeCollection = await FeeCollection.findById(req.params.id);
-    if (!feeCollection) {
-      return res.status(404).json({
-        success: false,
-        message: "Fee collection not found",
-      });
-    }
-
-    if (status) feeCollection.status = status;
-    if (note) feeCollection.note = note;
-    await feeCollection.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Fee collection updated successfully",
-      data: feeCollection,
-    });
-  } catch (error) {
-    console.error("Update fee collection error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
-};
-
-// @desc    Delete fee collection
-// @route   DELETE /api/fee-collections/:id
-// @access  Private/Accountant
+// Delete fee collection (Admin only)
 const deleteFeeCollection = async (req, res) => {
   try {
-    const feeCollection = await FeeCollection.findById(req.params.id);
-    if (!feeCollection) {
-      return res.status(404).json({
-        success: false,
-        message: "Fee collection not found",
-      });
+    const collection = await FeeCollection.findById(req.params.id);
+    if (!collection) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Collection not found" });
     }
 
-    // Remove receipt
-    await Receipt.findOneAndDelete({ feeCollection: feeCollection._id });
-
-    // Update student fees
-    const student = await Student.findById(feeCollection.student);
+    // Reverse fee update
+    const student = await Student.findById(collection.student);
     if (student) {
       student.paidFees = Math.max(
         0,
-        (student.paidFees || 0) - feeCollection.amount,
+        (student.paidFees || 0) - collection.amount,
       );
       student.pendingFees = (student.totalFees || 0) - student.paidFees;
-      student.feeStatus = student.pendingFees <= 0 ? "Paid" : "Partial";
+      student.feeStatus =
+        student.pendingFees <= 0
+          ? "Paid"
+          : student.paidFees > 0
+            ? "Partial"
+            : "Pending";
       await student.save();
     }
 
     await FeeCollection.findByIdAndDelete(req.params.id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Fee collection deleted successfully",
-    });
+    res.json({ success: true, message: "Collection deleted" });
   } catch (error) {
     console.error("Delete fee collection error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get fee collection summary
-// @route   GET /api/fee-collections/summary
-// @access  Private/Accountant
+// Get fee summary
 const getFeeSummary = async (req, res) => {
   try {
-    // Today's collection
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayCollection = await FeeCollection.aggregate([
-      {
-        $match: {
-          status: "Completed",
-          date: { $gte: today, $lt: tomorrow },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // This month's collection
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const todayCollection = await FeeCollection.aggregate([
+      { $match: { status: "Completed", date: { $gte: today } } },
+      { $group: { _id: null, total: { $sum: "$amount" }, count: { $sum: 1 } } },
+    ]);
 
     const monthCollection = await FeeCollection.aggregate([
       {
@@ -366,60 +187,30 @@ const getFeeSummary = async (req, res) => {
           date: { $gte: monthStart, $lte: monthEnd },
         },
       },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: null, total: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]);
 
-    // Pending collections
-    const pendingCollection = await FeeCollection.aggregate([
-      {
-        $match: {
-          status: "Pending",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Total students with pending fees
     const pendingStudents = await Student.countDocuments({
       pendingFees: { $gt: 0 },
     });
 
-    return res.status(200).json({
+    res.json({
       success: true,
       data: {
         today: {
-          total: todayCollection.length > 0 ? todayCollection[0].total : 0,
-          count: todayCollection.length > 0 ? todayCollection[0].count : 0,
+          total: todayCollection[0]?.total || 0,
+          count: todayCollection[0]?.count || 0,
         },
         month: {
-          total: monthCollection.length > 0 ? monthCollection[0].total : 0,
-          count: monthCollection.length > 0 ? monthCollection[0].count : 0,
-        },
-        pending: {
-          total: pendingCollection.length > 0 ? pendingCollection[0].total : 0,
-          count: pendingCollection.length > 0 ? pendingCollection[0].count : 0,
+          total: monthCollection[0]?.total || 0,
+          count: monthCollection[0]?.count || 0,
         },
         pendingStudents,
       },
     });
   } catch (error) {
     console.error("Get fee summary error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -427,7 +218,6 @@ module.exports = {
   createFeeCollection,
   getFeeCollections,
   getFeeCollection,
-  updateFeeCollection,
   deleteFeeCollection,
   getFeeSummary,
 };
