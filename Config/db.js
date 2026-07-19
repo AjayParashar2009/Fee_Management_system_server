@@ -1,14 +1,15 @@
 const mongoose = require("mongoose");
 
+const dbURI = process.env.MONGODB_URI || "mongodb://localhost:27017/fee_management";
+
 mongoose
-  .connect(
-    process.env.MONGODB_URI || "mongodb://localhost:27017/fee_management",
-  )
+  .connect(dbURI)
   .then(() => {
     console.log("Database Connected Successfully");
   })
-  .catch(() => {
-    console.log("Database not Connected");
+  .catch((err) => {
+    console.error("Database not Connected:", err.message || err);
+    process.exit(1);
   });
 
 module.exports = mongoose;
