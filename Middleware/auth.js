@@ -1,6 +1,6 @@
 // middleware/auth.js
 const jwt = require("jsonwebtoken");
-const User = require("../schema/authSchema"); // or auth_data
+const auth_data = require("../schema/authSchema");
 const dotenv = require("dotenv");
 
 dotenv.config();
@@ -17,7 +17,7 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, SECRET_KEY);
-    const user = await User.findById(decoded.id).select("-password");
+    const user = await auth_data.findById(decoded.id).select("-password");
 
     if (!user) {
       return res
@@ -41,7 +41,7 @@ const auth = async (req, res, next) => {
   }
 };
 
-// ✅ Admin only
+// Admin only
 const adminOnly = (req, res, next) => {
   if (req.user.role === "admin") return next();
   return res
@@ -49,19 +49,16 @@ const adminOnly = (req, res, next) => {
     .json({ success: false, message: "Admin access required" });
 };
 
-// ✅ Accountant or Admin
+// Accountant or Admin
 const accountantOnly = (req, res, next) => {
-  // ✅ Allow both accountant and admin roles
-  if (req.user.role === "accountant" || req.user.role === "admin") {
+  if (req.user.role === "accountant" || req.user.role === "admin")
     return next();
-  }
-  return res.status(403).json({
-    success: false,
-    message: "Access denied. Accountant or Admin only.",
-  });
+  return res
+    .status(403)
+    .json({ success: false, message: "Accountant access required" });
 };
 
-// ✅ Student or Admin
+// Student or Admin
 const studentOnly = (req, res, next) => {
   if (req.user.role === "student" || req.user.role === "admin") return next();
   return res
