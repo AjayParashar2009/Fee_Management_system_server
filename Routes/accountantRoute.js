@@ -6,7 +6,7 @@ const {
   updateAccountant,
   deleteAccountant,
 } = require("../controllers/accountantController");
-const { auth, adminOnly } = require("../Middleware/auth");
+const { auth, adminOnly } = require("../middleware/auth");
 
 router.use(auth);
 router.use(adminOnly);

@@ -6,7 +6,7 @@ const {
   getMe,
   logout,
 } = require("../controllers/authController");
-const { auth, adminOnly } = require("../Middleware/auth");
+const { auth, adminOnly } = require("../middleware/auth");
 
 router.post("/login", login);
 router.get("/me", auth, getMe);
