@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 
 // ============================================
-// ✅ CORS CONFIGURATION - FIX FOR DEPLOYMENT
+// ✅ CORS CONFIGURATION - FIXED
 // ============================================
 const allowedOrigins = [
   "https://fee-management-system-theta.vercel.app",
@@ -24,19 +24,14 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) {
         return callback(null, true);
       }
-
-      // Check if origin is allowed
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
         console.log("❌ CORS blocked origin:", origin);
-        // For production, uncomment the line below and comment the next line
-        // callback(new Error('Not allowed by CORS'));
-        callback(null, true); // Allow all origins for testing (remove in production)
+        callback(null, true); // Allow all for testing
       }
     },
     credentials: true,
@@ -54,8 +49,8 @@ app.use(
   }),
 );
 
-// Handle preflight requests
-app.options("*", cors());
+// ✅ FIX: Handle preflight requests - REMOVED app.options('*', cors())
+// Instead, CORS middleware handles OPTIONS requests automatically
 
 // ============================================
 // MIDDLEWARE
