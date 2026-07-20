@@ -75,6 +75,9 @@ const createStudent = async (req, res) => {
       enrollmentNo,
     } = req.body;
 
+    // ✅ Log incoming data
+    console.log("📥 Received enrollmentNo:", enrollmentNo);
+
     // Check if user exists
     const existing = await auth_data.findOne({
       $or: [{ email }, { username }],
@@ -86,9 +89,14 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // ✅ Check if enrollment number already exists (if provided)
-    let finalEnrollmentNo = enrollmentNo?.trim();
-    if (finalEnrollmentNo) {
+    // ✅ Handle enrollment number properly
+    let finalEnrollmentNo = null;
+
+    if (enrollmentNo && enrollmentNo.trim() !== "") {
+      // User provided an enrollment number
+      finalEnrollmentNo = enrollmentNo.trim();
+
+      // Check if it already exists
       const existingEnrollment = await Student.findOne({
         enrollmentNo: finalEnrollmentNo,
       });
@@ -98,6 +106,7 @@ const createStudent = async (req, res) => {
           message: "Enrollment number already exists",
         });
       }
+      console.log("✅ Using user-provided enrollment:", finalEnrollmentNo);
     } else {
       // Auto-generate enrollment number
       const timestamp = Date.now().toString().slice(-6);
@@ -115,6 +124,7 @@ const createStudent = async (req, res) => {
         });
         counter++;
       }
+      console.log("✅ Auto-generated enrollment:", finalEnrollmentNo);
     }
 
     // Generate password if not provided
@@ -147,6 +157,9 @@ const createStudent = async (req, res) => {
       pendingFees: 0,
       feeStatus: "Pending",
     });
+
+    // ✅ Verify what was saved
+    console.log("✅ Saved enrollment in DB:", student.enrollmentNo);
 
     const populated = await Student.findById(student._id).populate(
       "user",
