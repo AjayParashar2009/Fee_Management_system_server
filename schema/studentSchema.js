@@ -13,7 +13,7 @@ const studentSchema = new mongoose.Schema(
     course: { type: String, required: true },
     semester: { type: String, required: true },
     address: { type: String, default: "" },
-    enrollmentNo: { type: String, unique: true },
+    enrollmentNo: { type: String, unique: true, sparse: true },
     dob: { type: String, default: "" },
     totalFees: { type: Number, default: 0 },
     paidFees: { type: Number, default: 0 },

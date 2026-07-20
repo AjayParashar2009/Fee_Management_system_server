@@ -3,14 +3,30 @@ const auth_data = require("../schema/authSchema");
 const Student = require("../schema/studentSchema");
 const bcrypt = require("bcrypt");
 
-// Get all students
+// ✅ Get all students - Populate user to get email
 const getStudents = async (req, res) => {
   try {
     const students = await Student.find()
       .populate("user", "username email status")
       .sort({ createdAt: -1 });
-    res.json({ success: true, count: students.length, data: students });
+
+    const formattedStudents = students.map((student) => {
+      const studentObj = student.toObject();
+      return {
+        ...studentObj,
+        email: student.user?.email || "N/A",
+        username: student.user?.username || "N/A",
+        enrollmentNo: student.enrollmentNo || "N/A",
+      };
+    });
+
+    res.json({
+      success: true,
+      count: formattedStudents.length,
+      data: formattedStudents,
+    });
   } catch (error) {
+    console.error("❌ Get students error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -27,13 +43,23 @@ const getStudent = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Student not found" });
     }
-    res.json({ success: true, data: student });
+
+    const studentObj = student.toObject();
+    res.json({
+      success: true,
+      data: {
+        ...studentObj,
+        email: student.user?.email || "N/A",
+        username: student.user?.username || "N/A",
+        enrollmentNo: student.enrollmentNo || "N/A",
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ✅ Create student with auto-generated credentials
+// ✅ Create student with enrollment number handling
 const createStudent = async (req, res) => {
   try {
     const {
@@ -46,6 +72,7 @@ const createStudent = async (req, res) => {
       phone,
       address,
       dob,
+      enrollmentNo,
     } = req.body;
 
     // Check if user exists
@@ -59,10 +86,39 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // ✅ Generate password if not provided
-    const generatedPassword = password || generateRandomPassword();
+    // ✅ Check if enrollment number already exists (if provided)
+    let finalEnrollmentNo = enrollmentNo?.trim();
+    if (finalEnrollmentNo) {
+      const existingEnrollment = await Student.findOne({
+        enrollmentNo: finalEnrollmentNo,
+      });
+      if (existingEnrollment) {
+        return res.status(400).json({
+          success: false,
+          message: "Enrollment number already exists",
+        });
+      }
+    } else {
+      // Auto-generate enrollment number
+      const timestamp = Date.now().toString().slice(-6);
+      finalEnrollmentNo = `STU${timestamp}`;
 
-    // Hash password
+      // Check if generated number already exists (rare case)
+      let existingGen = await Student.findOne({
+        enrollmentNo: finalEnrollmentNo,
+      });
+      let counter = 1;
+      while (existingGen) {
+        finalEnrollmentNo = `STU${timestamp}${counter}`;
+        existingGen = await Student.findOne({
+          enrollmentNo: finalEnrollmentNo,
+        });
+        counter++;
+      }
+    }
+
+    // Generate password if not provided
+    const generatedPassword = password || generateRandomPassword();
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
     // Create auth user
@@ -75,7 +131,7 @@ const createStudent = async (req, res) => {
       name: name,
     });
 
-    // Create student profile
+    // Create student profile with final enrollment number
     const student = await Student.create({
       user: user._id,
       name,
@@ -84,8 +140,12 @@ const createStudent = async (req, res) => {
       phone: phone || "",
       address: address || "",
       dob: dob || "",
-      enrollmentNo: `STU${Date.now().toString().slice(-6)}`,
+      enrollmentNo: finalEnrollmentNo,
       status: "Active",
+      totalFees: 0,
+      paidFees: 0,
+      pendingFees: 0,
+      feeStatus: "Pending",
     });
 
     const populated = await Student.findById(student._id).populate(
@@ -93,21 +153,26 @@ const createStudent = async (req, res) => {
       "username email status",
     );
 
-    // ✅ Return credentials so frontend can display them
     res.status(201).json({
       success: true,
       message: "Student created successfully",
-      data: populated,
+      data: {
+        ...populated.toObject(),
+        email: populated.user?.email || "N/A",
+        username: populated.user?.username || "N/A",
+        enrollmentNo: student.enrollmentNo,
+      },
       credentials: {
         username: user.username,
         email: user.email,
         password: generatedPassword,
         role: "student",
         name: name,
+        enrollmentNo: student.enrollmentNo,
       },
     });
   } catch (error) {
-    console.error("Create student error:", error);
+    console.error("❌ Create student error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -122,7 +187,17 @@ const updateStudent = async (req, res) => {
         .json({ success: false, message: "Student not found" });
     }
 
-    const { name, course, semester, phone, address, dob, status } = req.body;
+    const {
+      name,
+      course,
+      semester,
+      phone,
+      address,
+      dob,
+      status,
+      enrollmentNo,
+    } = req.body;
+
     if (name) student.name = name;
     if (course) student.course = course;
     if (semester) student.semester = semester;
@@ -130,14 +205,42 @@ const updateStudent = async (req, res) => {
     if (address) student.address = address;
     if (dob) student.dob = dob;
     if (status) student.status = status;
+
+    // Check if enrollment number is being updated and is unique
+    if (enrollmentNo && enrollmentNo !== student.enrollmentNo) {
+      const existingEnrollment = await Student.findOne({
+        enrollmentNo,
+        _id: { $ne: student._id },
+      });
+      if (existingEnrollment) {
+        return res.status(400).json({
+          success: false,
+          message: "Enrollment number already exists",
+        });
+      }
+      student.enrollmentNo = enrollmentNo;
+    }
+
     await student.save();
 
     const updated = await Student.findById(student._id).populate(
       "user",
       "username email status",
     );
-    res.json({ success: true, message: "Student updated", data: updated });
+
+    const studentObj = updated.toObject();
+    res.json({
+      success: true,
+      message: "Student updated",
+      data: {
+        ...studentObj,
+        email: updated.user?.email || "N/A",
+        username: updated.user?.username || "N/A",
+        enrollmentNo: student.enrollmentNo || "N/A",
+      },
+    });
   } catch (error) {
+    console.error("❌ Update student error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -157,11 +260,12 @@ const deleteStudent = async (req, res) => {
 
     res.json({ success: true, message: "Student deleted successfully" });
   } catch (error) {
+    console.error("❌ Delete student error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ✅ Helper function to generate random password
+// Helper function to generate random password
 const generateRandomPassword = () => {
   const length = 10;
   const charset =
@@ -174,9 +278,7 @@ const generateRandomPassword = () => {
   return password;
 };
 
-// controllers/studentController.js - Add this function
-
-// ✅ Get student fees and payment history
+// Get student fees and payment history
 const getStudentFees = async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
@@ -186,7 +288,6 @@ const getStudentFees = async (req, res) => {
         .json({ success: false, message: "Student not found" });
     }
 
-    // Get fee collections for this student
     const FeeCollection = require("../schema/feeCollectionSchema");
     const collections = await FeeCollection.find({ student: student._id }).sort(
       { date: -1 },
@@ -210,12 +311,11 @@ const getStudentFees = async (req, res) => {
   }
 };
 
-// Export it
 module.exports = {
   getStudents,
   getStudent,
   createStudent,
   updateStudent,
   deleteStudent,
-  getStudentFees, 
+  getStudentFees,
 };
