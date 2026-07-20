@@ -1,3 +1,4 @@
+// schema/accountantSchema.js
 const mongoose = require("mongoose");
 
 const accountantSchema = new mongoose.Schema(
